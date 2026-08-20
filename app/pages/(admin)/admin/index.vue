@@ -29,6 +29,7 @@ const { data, pending, error, refresh } = await useAsyncData<AdminOverview>(
       groups_total: 2,
       active_bank_offers: 4,
       restaurant_offer_rules: 8,
+      bookings_total: 45,
     },
     booking_statuses: [],
     latest_alerts: [],

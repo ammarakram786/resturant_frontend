@@ -48,7 +48,7 @@ const applyFilters = async () => {
 const updateRestaurantStatus = async (id: number, newStatus: string) => {
   actionBusyId.value = id
   try {
-    await admin.updateRestaurant(id, { status: newStatus })
+    await admin.reviewRestaurant(id, { status: newStatus })
     toast.add({
       title: 'Restaurant Status Updated',
       description: `Restaurant #${id} set to ${newStatus}`,

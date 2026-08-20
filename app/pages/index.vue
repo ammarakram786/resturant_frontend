@@ -1,5 +1,7 @@
 <script setup lang="ts">
-await navigateTo('/discover', { redirectCode: 302 })
+definePageMeta({
+  redirect: '/discover',
+})
 </script>
 
 <template>
