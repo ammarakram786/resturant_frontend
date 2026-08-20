@@ -1,0 +1,33 @@
+# Nuxt build output and temporary files
+.nuxt/
+.output/
+.nitro/
+.cache/
+dist/
+
+# Node dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE / OS metadata
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db

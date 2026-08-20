@@ -1,0 +1,17 @@
+# Dependencies & build output
+node_modules/
+.output/
+.nuxt/
+.data/
+dist/
+
+# Local env
+.env
+.env.*
+
+# Editor / VCS
+.git/
+.gitignore
+.idea/
+.vscode/
+*.log

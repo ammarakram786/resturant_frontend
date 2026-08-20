@@ -1,0 +1,35 @@
+{
+  "name": "resturant-frontend",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@nuxt/ui": "4.4.0",
+    "@pinia/nuxt": "^0.9.0",
+    "@tanstack/vue-table": "^8.20.5",
+    "@vee-validate/zod": "^4.14.7",
+    "@vueuse/core": "^12.7.0",
+    "@vueuse/nuxt": "^12.7.0",
+    "date-fns": "^4.1.0",
+    "nuxt": "4.3.0",
+    "pinia": "^2.3.1",
+    "pinia-plugin-persistedstate": "^4.2.0",
+    "vee-validate": "^4.14.7",
+    "zod": "^3.24.2"
+  },
+  "resolutions": {
+    "undici": "7.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.7.3",
+    "vue-tsc": "^2.2.0"
+  }
+}
