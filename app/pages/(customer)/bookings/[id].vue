@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BookingRecord } from '~~/shared/types/domain'
+import type { BookingAttendanceStatus, BookingRecord, BookingStatus } from '~~/shared/types/domain'
 import { useBookings } from '../../../composables/useBookings'
 import { useCustomerSession } from '../../../composables/useCustomerSession'
 
@@ -26,9 +26,20 @@ const reviewForm = reactive({
   rating: 5,
   comment: '',
 })
+const inviteForm = reactive({
+  mode: 'contact' as 'contact' | 'user',
+  full_name: '',
+  email: '',
+  phone: '',
+  message: '',
+  user_id: '' as string | number,
+})
 const state = reactive({
   savingEdit: false,
   savingReview: false,
+  sendingInvite: false,
+  transitioning: false,
+  markingAttendance: false,
   error: '',
   success: '',
 })
@@ -54,6 +65,33 @@ const canReview = computed(() => bookingDetail.value?.status === 'completed' && 
 const canEdit = computed(() => {
   const status = bookingDetail.value?.status
   return status === 'pending' || status === 'confirmed' || status === 'waitlisted' || status === 'table_ready'
+})
+const canInvite = computed(() => {
+  const status = bookingDetail.value?.status
+  return status === 'pending' || status === 'confirmed'
+})
+
+const customerTransitions = computed<Array<{ label: string, status: BookingStatus }>>(() => {
+  const status = bookingDetail.value?.status
+  if (!status) return []
+  if (status === 'pending') {
+    return [{ label: 'Confirm booking', status: 'confirmed' }]
+  }
+  return []
+})
+
+const attendanceOptions = computed<Array<{ label: string, value: BookingAttendanceStatus }>>(() => {
+  const status = bookingDetail.value?.status
+  if (status === 'arrived') {
+    return [
+      { label: 'Mark seated', value: 'seated' },
+      { label: 'Mark no-show', value: 'no_show' },
+    ]
+  }
+  if (status === 'seated') {
+    return [{ label: 'Mark completed', value: 'completed' }]
+  }
+  return []
 })
 
 useSeoMeta({
@@ -99,6 +137,93 @@ async function submitReview() {
   }
   finally {
     state.savingReview = false
+  }
+}
+
+async function runTransition(status: BookingStatus) {
+  if (!bookingDetail.value) {
+    return
+  }
+
+  state.error = ''
+  state.success = ''
+  state.transitioning = true
+  try {
+    await bookingsApi.transitionBooking(bookingDetail.value.id, status)
+    state.success = `Booking moved to ${status}.`
+    await refresh()
+  }
+  catch (error) {
+    state.error = error instanceof Error ? error.message : 'Unable to update this booking.'
+  }
+  finally {
+    state.transitioning = false
+  }
+}
+
+async function recordAttendance(value: BookingAttendanceStatus) {
+  if (!bookingDetail.value) {
+    return
+  }
+
+  state.error = ''
+  state.success = ''
+  state.markingAttendance = true
+  try {
+    await bookingsApi.markAttendance(bookingDetail.value.id, value)
+    state.success = `Attendance updated to ${value.replace('_', ' ')}.`
+    await refresh()
+  }
+  catch (error) {
+    state.error = error instanceof Error ? error.message : 'Unable to record attendance.'
+  }
+  finally {
+    state.markingAttendance = false
+  }
+}
+
+async function sendInvite() {
+  if (!bookingDetail.value) {
+    return
+  }
+
+  state.error = ''
+  state.success = ''
+  if (inviteForm.mode === 'contact' && !inviteForm.email && !inviteForm.phone) {
+    state.error = 'Provide an email or phone number for the invite.'
+    return
+  }
+  if (inviteForm.mode === 'user' && !inviteForm.user_id) {
+    state.error = 'Provide the guest user id for the invite.'
+    return
+  }
+
+  state.sendingInvite = true
+  try {
+    const result = inviteForm.mode === 'user'
+      ? await bookingsApi.inviteGuest(bookingDetail.value.id, {
+          user_id: Number(inviteForm.user_id),
+          full_name: inviteForm.full_name,
+          message: inviteForm.message,
+        })
+      : await bookingsApi.inviteGuestByContact(bookingDetail.value.id, {
+          full_name: inviteForm.full_name,
+          email: inviteForm.email,
+          phone: inviteForm.phone,
+          message: inviteForm.message,
+        })
+
+    state.success = result.matched_customer
+      ? `Invite delivered to ${result.recipient.full_name || result.recipient.email || result.recipient.phone || 'your guest'}.`
+      : 'Invite recorded — they will be notified once they join the platform.'
+    Object.assign(inviteForm, { full_name: '', email: '', phone: '', message: '', user_id: '' })
+    await refresh()
+  }
+  catch (error) {
+    state.error = error instanceof Error ? error.message : 'Unable to send the invite.'
+  }
+  finally {
+    state.sendingInvite = false
   }
 }
 </script>
@@ -220,6 +345,87 @@ async function submitReview() {
             :description="bookingDetail.reviewed_at ? 'This booking already has a submitted review.' : 'Reviews open after the booking is completed.'"
             icon="i-lucide-message-square-off"
           />
+        </UCard>
+
+        <UCard>
+          <template #header>
+            <div class="space-y-1">
+              <h2 class="text-lg font-semibold text-highlighted">Invite guests</h2>
+              <p class="text-sm text-muted">
+                Share this reservation with co-diners by platform user id or contact details.
+              </p>
+            </div>
+          </template>
+
+          <div v-if="canInvite" class="space-y-4">
+            <URadioGroup
+              v-model="inviteForm.mode"
+              variant="card"
+              :items="[
+                { label: 'By contact details', value: 'contact' },
+                { label: 'By platform user id', value: 'user' },
+              ]"
+              value-key="value"
+            />
+
+            <div v-if="inviteForm.mode === 'user'" class="grid gap-4 md:grid-cols-2">
+              <UInput v-model="inviteForm.user_id" type="number" min="1" placeholder="Guest user id" />
+              <UInput v-model="inviteForm.full_name" placeholder="Guest name (optional)" />
+            </div>
+            <div v-else class="grid gap-4 md:grid-cols-2">
+              <UInput v-model="inviteForm.full_name" placeholder="Guest name (optional)" />
+              <UInput v-model="inviteForm.email" type="email" placeholder="Email address" />
+            </div>
+
+            <UInput v-if="inviteForm.mode === 'contact'" v-model="inviteForm.phone" placeholder="Phone number" />
+            <UTextarea v-model="inviteForm.message" placeholder="Personal message (optional)" />
+
+            <UButton :loading="state.sendingInvite" icon="i-lucide-mail-plus" @click="sendInvite">
+              Send invite
+            </UButton>
+          </div>
+          <EmptyState
+            v-else
+            title="Invites unavailable"
+            description="Guest invites are open while the booking is pending or confirmed."
+            icon="i-lucide-user-x"
+          />
+        </UCard>
+
+        <UCard v-if="customerTransitions.length || attendanceOptions.length">
+          <template #header>
+            <div class="space-y-1">
+              <h2 class="text-lg font-semibold text-highlighted">Booking actions</h2>
+              <p class="text-sm text-muted">
+                Status changes allowed for your reservation under the current booking policy.
+              </p>
+            </div>
+          </template>
+
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              v-for="transition in customerTransitions"
+              :key="transition.status"
+              color="primary"
+              variant="soft"
+              :loading="state.transitioning"
+              icon="i-lucide-corner-down-right"
+              @click="runTransition(transition.status)"
+            >
+              {{ transition.label }}
+            </UButton>
+            <UButton
+              v-for="option in attendanceOptions"
+              :key="option.value"
+              :color="option.value === 'no_show' ? 'error' : 'neutral'"
+              variant="soft"
+              :loading="state.markingAttendance"
+              :icon="option.value === 'no_show' ? 'i-lucide-user-x' : 'i-lucide-check-check'"
+              @click="recordAttendance(option.value)"
+            >
+              {{ option.label }}
+            </UButton>
+          </div>
         </UCard>
 
         <UAlert v-if="state.success" color="success" variant="soft" :title="state.success" />

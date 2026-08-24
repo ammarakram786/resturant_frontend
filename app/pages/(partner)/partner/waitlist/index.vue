@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OperatorBookingRecord } from '~~/shared/types/domain'
+import { useBookings } from '../../../../composables/useBookings'
 import { usePartner } from '../../../../composables/usePartner'
 
 definePageMeta({
@@ -13,12 +14,15 @@ useSeoMeta({
   description: 'Operator waitlist board for table-ready, arrival, and seating workflows.',
 })
 
+const toast = useToast()
 const partner = usePartner()
+const bookingsApi = useBookings()
 const actionState = reactive({
   busyBookingId: 0,
   busyAction: '',
   error: '',
 })
+const promotingId = ref(0)
 
 const { data, pending, refresh } = await useAsyncData('partner-waitlist', async () => {
   const [waitlisted, tableReady] = await Promise.all([
@@ -50,6 +54,27 @@ async function runAction(booking: OperatorBookingRecord, action: 'table-ready' |
   finally {
     actionState.busyBookingId = 0
     actionState.busyAction = ''
+  }
+}
+
+async function promoteEntry(booking: OperatorBookingRecord) {
+  promotingId.value = booking.id
+  actionState.error = ''
+  try {
+    await bookingsApi.promoteNextWaitlist(booking.id)
+    toast.add({
+      title: 'Waitlist Promoted',
+      description: `${booking.customer.name || `Booking #${booking.id}`} is now confirmed.`,
+      color: 'success',
+      icon: 'i-lucide-trending-up',
+    })
+    await refresh()
+  }
+  catch (error) {
+    actionState.error = error instanceof Error ? error.message : 'Unable to promote this waitlist entry.'
+  }
+  finally {
+    promotingId.value = 0
   }
 }
 
@@ -103,6 +128,16 @@ function formatDateTime(value: string) {
             </div>
 
             <div class="flex flex-wrap gap-2">
+              <UButton
+                v-if="booking.status === 'waitlisted'"
+                color="secondary"
+                variant="soft"
+                icon="i-lucide-trending-up"
+                :loading="promotingId === booking.id"
+                @click="promoteEntry(booking)"
+              >
+                Promote now
+              </UButton>
               <UButton
                 v-if="booking.status === 'waitlisted'"
                 color="primary"

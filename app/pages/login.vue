@@ -11,11 +11,13 @@ definePageMeta({
 
 const router = useRouter()
 const toast = useToast()
-const { sendOtp, verifyOtp } = useAuth()
+const { sendOtp, resendOtp, verifyOtp, googleAuth } = useAuth()
 const authStore = useAuthStore()
 
 const step = ref<'email' | 'otp'>('email')
 const isSubmitting = ref(false)
+const isResending = ref(false)
+const isGoogleBusy = ref(false)
 const resendCooldown = ref(0)
 let cooldownTimer: NodeJS.Timeout | null = null
 
@@ -141,6 +143,74 @@ const onVerifyOtp = handleOtpSubmit(async (values) => {
   }
 })
 
+const onResendOtp = async () => {
+  if (!email.value || resendCooldown.value > 0) return
+  isResending.value = true
+  try {
+    const res = await resendOtp({ email: email.value })
+    toast.add({
+      title: 'Code Resent',
+      description: `A new code was sent to ${email.value}`,
+      color: 'success',
+      icon: 'i-lucide-mail-check',
+    })
+    startResendTimer(res?.resend_cooldown || 45)
+  }
+  catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to resend the code'
+    toast.add({
+      title: 'Error',
+      description: message,
+      color: 'error',
+      icon: 'i-lucide-alert-circle',
+    })
+  }
+  finally {
+    isResending.value = false
+  }
+}
+
+const onGoogleSignIn = handleEmailSubmit(async (values) => {
+  isGoogleBusy.value = true
+  try {
+    const result = await googleAuth({ email: values.email })
+
+    toast.add({
+      title: 'Signed in with Google',
+      description: `Welcome, ${result.user.name || result.user.email}`,
+      color: 'success',
+      icon: 'i-lucide-check-circle',
+    })
+
+    const role = result.user.role || authStore.userRole
+    if (role === 'admin') {
+      router.push('/admin')
+    }
+    else if (['owner', 'restaurant', 'manager', 'staff'].includes(role)) {
+      router.push('/partner')
+    }
+    else {
+      router.push('/discover')
+    }
+  }
+  catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to sign in with Google'
+    toast.add({
+      title: 'Google Sign-In Failed',
+      description: message,
+      color: 'error',
+      icon: 'i-lucide-alert-circle',
+    })
+  }
+  finally {
+    isGoogleBusy.value = false
+  }
+})
+
+const triggerGoogleSignIn = () => {
+  void onGoogleSignIn()
+}
+
 const backToEmail = () => {
   step.value = 'email'
 }
@@ -205,6 +275,25 @@ onUnmounted(() => {
             class="py-3 font-semibold text-slate-950 bg-amber-400 hover:bg-amber-300"
           >
             Continue with Email
+          </UButton>
+
+          <div class="relative flex items-center justify-center">
+            <span class="h-px w-full bg-white/10" />
+            <span class="absolute px-3 text-[10px] uppercase tracking-widest text-slate-500 bg-slate-900">or</span>
+          </div>
+
+          <UButton
+            type="button"
+            color="neutral"
+            variant="outline"
+            block
+            size="lg"
+            :loading="isGoogleBusy"
+            icon="i-lucide-chrome"
+            class="py-3 font-semibold"
+            @click="triggerGoogleSignIn"
+          >
+            Continue with Google
           </UButton>
 
           <!-- Quick Dev hint -->
@@ -279,9 +368,11 @@ onUnmounted(() => {
               <button
                 type="button"
                 :disabled="resendCooldown > 0"
-                class="hover:text-amber-400 disabled:opacity-50 transition-colors"
-                @click="onSendEmail"
+                :class="{ 'opacity-50 cursor-not-allowed': resendCooldown > 0 }"
+                class="hover:text-amber-400 disabled:opacity-50 transition-colors inline-flex items-center gap-1"
+                @click="onResendOtp"
               >
+                <UIcon v-if="isResending" name="i-lucide-loader-circle" class="h-3 w-3 animate-spin" />
                 {{ resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend Code' }}
               </button>
             </div>

@@ -9,7 +9,7 @@ export default defineNuxtRouteMiddleware((to) => {
   }
 
   const expectedPrefix = surfacePathPrefixes[pageSurface]
-  const isCustomerRoute = pageSurface === 'customer' && !to.path.startsWith('/partner') && !to.path.startsWith('/admin')
+  const isCustomerRoute = pageSurface === 'customer' && !to.path.startsWith('/partner') && !to.path.startsWith('/admin') && !to.path.startsWith('/hub')
 
   if (isCustomerRoute) {
     return

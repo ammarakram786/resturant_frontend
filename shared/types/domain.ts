@@ -1,6 +1,6 @@
 export type AppLocale = 'en' | 'ur'
 
-export type SurfaceKind = 'customer' | 'partner' | 'admin'
+export type SurfaceKind = 'customer' | 'partner' | 'admin' | 'hub'
 
 export type BookingStatus =
   | 'pending'
@@ -230,12 +230,43 @@ export type OperatorBookingRecord = {
   restaurant: BookingRecord['restaurant']
   customer: OperatorCustomerSummary
   waitlist: BookingRecord['waitlist']
+  modification_request?: PendingModificationRequest | null
   special_request?: string
   customer_name?: string
   contact_email_masked?: string
   contact_phone_masked?: string
   review_requested_at?: string | null
   reviewed_at?: string | null
+}
+
+export type PendingModificationRequest = {
+  id: number
+  status: 'pending' | 'approved' | 'rejected'
+  original_payload: Record<string, unknown>
+  requested_payload: Record<string, unknown>
+  decision_note?: string
+  requested_by_id: number
+  created_at: string
+}
+
+export type ModificationDecisionResponse = {
+  modification: PendingModificationRequest & { booking_id: number, acted_by_id?: number | null, acted_at?: string | null }
+  booking: {
+    id: number
+    status: BookingStatus
+    starts_at: string
+    ends_at: string
+    people: number
+    dining_area?: string | null
+    special_request?: string
+    occasion?: string
+    occasion_note?: string
+  }
+}
+
+export type WaitlistPromotionResult = {
+  booking_id: number
+  status: BookingStatus
 }
 
 export type OperatorGuestProfile = {
@@ -526,4 +557,54 @@ export type PrivateEventQuoteLine = {
   unit_price: string
   subtotal: string
   notes?: string
+}
+
+export type BookingAttendanceStatus = 'arrived' | 'seated' | 'completed' | 'no_show'
+
+export type InquiryRateLimit = {
+  restaurant_id: number
+  window: unknown
+  remaining: unknown
+  limited: boolean
+}
+
+export type StatusRealtimeCapabilities = {
+  push_enabled: boolean
+  push_provider: string
+  broadcast_enabled: boolean
+  booking_poll_interval_seconds: number
+  notification_poll_interval_seconds: number
+  phone_otp_enabled: boolean
+}
+
+export type ApiStatus = {
+  api: string
+  version: string
+  phase: string
+  payments: string
+  realtime: StatusRealtimeCapabilities
+}
+
+export type ApiHealthcheck = {
+  status: string
+  service: string
+  timezone: string
+  api_version: string
+}
+
+export type DevicePlatform = 'web' | 'android' | 'ios'
+
+export type DeviceTokenPayload = {
+  token: string
+  platform: DevicePlatform
+  device_id?: string
+}
+
+export type GoogleAuthPayload = {
+  email: string
+  full_name?: string
+  google_subject?: string
+  id_token?: string
+  access_token?: string
+  phone?: string
 }

@@ -18,13 +18,14 @@ const toast = useToast()
 const bookingsApi = useBookings()
 const authStore = useAuthStore()
 
-const filter = ref<'active' | 'confirmed' | 'waitlisted' | 'cancelled'>('active')
+const filter = ref<'active' | 'confirmed' | 'waitlisted' | 'live' | 'cancelled'>('active')
 const actionBusyId = ref<number | null>(null)
 
 const { data: bookings, pending, refresh } = await useAsyncData<BookingRecord[]>(
   'my-bookings-list',
   async () => {
     if (!authStore.isAuthenticated) return []
+    if (filter.value === 'live') return bookingsApi.listMyWaitlists()
     return bookingsApi.listMyBookings(filter.value)
   },
 )
@@ -99,6 +100,31 @@ const convertWaitlist = async (id: number) => {
     actionBusyId.value = null
   }
 }
+
+const promoteMe = async (id: number) => {
+  actionBusyId.value = id
+  try {
+    await bookingsApi.promoteNextWaitlist(id)
+    toast.add({
+      title: 'Promotion Requested',
+      description: 'Your waitlist entry was promoted to a confirmed table.',
+      color: 'success',
+      icon: 'i-lucide-trending-up',
+    })
+    await refresh()
+  }
+  catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to promote this waitlist entry.'
+    toast.add({
+      title: 'Error',
+      description: message,
+      color: 'error',
+    })
+  }
+  finally {
+    actionBusyId.value = null
+  }
+}
 </script>
 
 <template>
@@ -128,6 +154,7 @@ const convertWaitlist = async (id: number) => {
           { label: 'Active', value: 'active' },
           { label: 'Confirmed', value: 'confirmed' },
           { label: 'Waitlisted', value: 'waitlisted' },
+          { label: 'Live Waitlists', value: 'live' },
           { label: 'Cancelled', value: 'cancelled' }
         ]"
         :key="tab.value"
@@ -226,6 +253,18 @@ const convertWaitlist = async (id: number) => {
 
         <!-- Actions Footer -->
         <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
+          <UButton
+            v-if="b.status === 'waitlisted'"
+            color="secondary"
+            variant="soft"
+            size="sm"
+            :loading="actionBusyId === b.id"
+            icon="i-lucide-trending-up"
+            @click="promoteMe(b.id)"
+          >
+            Promote Me
+          </UButton>
+
           <UButton
             v-if="b.status === 'waitlisted' || b.status === 'table_ready'"
             color="primary"

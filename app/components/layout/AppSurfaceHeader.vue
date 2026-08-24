@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SurfaceConfig } from '~~/shared/config/surfaces'
-import type { AppLocale } from '~~/shared/types/domain'
+import { portalSwitcherSurfaces } from '~~/shared/config/surfaces'
+import type { AppLocale, SurfaceKind } from '~~/shared/types/domain'
 import { useAppLocale } from '../../composables/useAppLocale'
 import { useAuthStore } from '../../stores/auth'
 import { useAuth } from '../../composables/useAuth'
@@ -21,6 +22,11 @@ const localeOptions = supportedLocales.map((value: AppLocale) => ({
 }))
 
 const surfaceBadgeColor = computed(() => props.surface.accent)
+
+const switcherLinkClass = (kind: SurfaceKind) =>
+  kind === props.surface.kind
+    ? `${props.surface.kind === 'customer' || props.surface.kind === 'partner' ? 'bg-amber-500/20 text-amber-300' : props.surface.kind === 'hub' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-rose-500/20 text-rose-300'} font-semibold`
+    : 'text-slate-400 hover:text-white'
 
 const toggleColorMode = () => {
   colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
@@ -59,26 +65,13 @@ const handleLogout = async () => {
         <!-- Portal Quick Switcher -->
         <div class="hidden md:flex items-center bg-slate-950/80 border border-white/10 rounded-xl p-1 gap-1">
           <NuxtLink
-            to="/discover"
+            v-for="entry in portalSwitcherSurfaces"
+            :key="entry.kind"
+            :to="entry.path"
             class="px-2.5 py-1 text-xs font-medium rounded-lg transition-colors"
-            :class="surface.kind === 'customer' ? 'bg-amber-500/20 text-amber-300 font-semibold' : 'text-slate-400 hover:text-white'"
+            :class="switcherLinkClass(entry.kind)"
           >
-            Customer
-          </NuxtLink>
-          <NuxtLink
-            to="/partner"
-            class="px-2.5 py-1 text-xs font-medium rounded-lg transition-colors"
-            :class="surface.kind === 'partner' ? 'bg-amber-500/20 text-amber-300 font-semibold' : 'text-slate-400 hover:text-white'"
-          >
-            Partner
-          </NuxtLink>
-
-          <NuxtLink
-            to="/admin"
-            class="px-2.5 py-1 text-xs font-medium rounded-lg transition-colors"
-            :class="surface.kind === 'admin' ? 'bg-rose-500/20 text-rose-300 font-semibold' : 'text-slate-400 hover:text-white'"
-          >
-            Admin
+            {{ entry.label }}
           </NuxtLink>
         </div>
 
@@ -101,7 +94,7 @@ const handleLogout = async () => {
         />
 
         <!-- User Profile or Login CTA -->
-        <template if="authStore.isAuthenticated">
+        <template v-if="authStore.isAuthenticated">
           <div class="flex items-center gap-2 border-l border-white/10 pl-3">
             <div class="flex flex-col text-right hidden sm:flex">
               <span class="text-xs font-semibold text-white truncate max-w-[120px]">

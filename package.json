@@ -10,6 +10,7 @@
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
+    "@nuxt/icon": "^2.5.1",
     "@nuxt/ui": "4.4.0",
     "@pinia/nuxt": "^0.9.0",
     "@tanstack/vue-table": "^8.20.5",
@@ -27,6 +28,7 @@
     "undici": "7.16.0"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "^1.2.125",
     "@types/node": "^26.1.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.7.3",

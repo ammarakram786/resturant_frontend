@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ThreadRecord } from '~~/shared/types/domain'
+import type { InquiryRateLimit, ThreadRecord } from '~~/shared/types/domain'
 import { useCustomerSession } from '../../../composables/useCustomerSession'
 import { useMessaging } from '../../../composables/useMessaging'
 
@@ -31,7 +31,35 @@ const state = reactive({
   creatingThread: false,
   sendingMessage: false,
   escalating: false,
+  checkingLimit: false,
   error: '',
+})
+
+const rateLimit = ref<InquiryRateLimit | null>(null)
+
+async function checkInquiryLimit() {
+  const restaurantId = threadForm.restaurant_id
+  if (!restaurantId) {
+    rateLimit.value = null
+    return
+  }
+
+  state.checkingLimit = true
+  try {
+    rateLimit.value = await messagingApi.getInquiryRateLimit(restaurantId)
+  }
+  catch {
+    rateLimit.value = null
+  }
+  finally {
+    state.checkingLimit = false
+  }
+}
+
+watch(() => threadForm.restaurant_id, (value, previous) => {
+  if (value !== previous && value) {
+    checkInquiryLimit()
+  }
 })
 
 const { data: threads, refresh: refreshThreads } = await useAsyncData<ThreadRecord[]>('customer-threads', async () => {
@@ -72,6 +100,17 @@ async function createThread() {
   state.creatingThread = true
   state.error = ''
   try {
+    if (threadForm.kind === 'direct' && threadForm.restaurant_id) {
+      const limit = rateLimit.value?.restaurant_id === threadForm.restaurant_id
+        ? rateLimit.value
+        : await messagingApi.getInquiryRateLimit(threadForm.restaurant_id)
+      rateLimit.value = limit
+      if (limit.limited) {
+        state.error = 'Inquiry limit reached for this restaurant — please use an existing thread.'
+        return
+      }
+    }
+
     const thread = await messagingApi.createThread(threadForm)
     selectedThreadId.value = thread.id
     await Promise.all([refreshThreads(), refreshSelectedThread()])
@@ -166,7 +205,29 @@ async function escalateConcierge() {
               <UButton color="neutral" variant="soft" icon="i-lucide-bot-message-square" :loading="state.escalating" @click="escalateConcierge">
                 Escalate concierge
               </UButton>
+              <UButton
+                v-if="threadForm.restaurant_id"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                icon="i-lucide-gauge"
+                :loading="state.checkingLimit"
+                @click="checkInquiryLimit"
+              >
+                Check inquiry quota
+              </UButton>
             </div>
+
+            <UAlert
+              v-if="rateLimit && threadForm.restaurant_id"
+              :color="rateLimit.limited ? 'error' : 'neutral'"
+              variant="soft"
+              :title="rateLimit.limited ? 'Inquiry limit reached for this restaurant' : 'Inquiries available'"
+              :description="rateLimit.limited
+                ? 'You have used your inquiry allowance for this restaurant. Try again later or use an existing thread.'
+                : `Remaining inquiries: ${String(rateLimit.remaining)}`"
+              :icon="rateLimit.limited ? 'i-lucide-octagon-alert' : 'i-lucide-gauge'"
+            />
 
             <div class="space-y-3">
               <button

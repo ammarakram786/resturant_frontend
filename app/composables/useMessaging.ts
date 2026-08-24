@@ -1,4 +1,4 @@
-import type { MessageRecord, ThreadDetail, ThreadRecord } from '~~/shared/types/domain'
+import type { InquiryRateLimit, MessageRecord, ThreadDetail, ThreadRecord } from '~~/shared/types/domain'
 import { useApi } from './useApi'
 
 export function useMessaging() {
@@ -53,6 +53,11 @@ export function useMessaging() {
       defaultMessage: 'Unable to escalate to concierge.',
     })
 
+  const getInquiryRateLimit = (restaurantId: number | string) =>
+    api.get<InquiryRateLimit>(`/messages/threads/${restaurantId}/inquiry-rate-limit`, {
+      defaultMessage: 'Unable to load the inquiry rate limit.',
+    })
+
   return {
     listThreads,
     createThread,
@@ -60,5 +65,6 @@ export function useMessaging() {
     sendMessage,
     markThreadRead,
     escalateConcierge,
+    getInquiryRateLimit,
   }
 }

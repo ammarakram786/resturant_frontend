@@ -70,10 +70,35 @@ export const surfaceConfigs: Record<SurfaceKind, SurfaceConfig> = {
       { label: 'Audit', icon: 'i-lucide-scroll-text', to: '/admin/audit' },
     ],
   },
+  hub: {
+    kind: 'hub',
+    title: 'Hub Platform Ops',
+    shortTitle: 'Hub',
+    description: 'Multi-tenant management, RBAC, platform modules, invoicing, and audit trails.',
+    homePath: '/hub',
+    accent: 'secondary',
+    nav: [
+      { label: 'Overview', icon: 'i-lucide-building-2', to: '/hub' },
+      { label: 'Tenants', icon: 'i-lucide-store', to: '/hub/tenants' },
+      { label: 'Users', icon: 'i-lucide-users-round', to: '/hub/users' },
+      { label: 'Roles', icon: 'i-lucide-key-round', to: '/hub/roles' },
+      { label: 'Modules', icon: 'i-lucide-blocks', to: '/hub/modules' },
+      { label: 'Billing', icon: 'i-lucide-receipt-text', to: '/hub/billing' },
+      { label: 'Audit Logs', icon: 'i-lucide-history', to: '/hub/audit-logs' },
+    ],
+  },
 }
 
 export const surfacePathPrefixes: Record<SurfaceKind, string> = {
   customer: '/',
   partner: '/partner',
   admin: '/admin',
+  hub: '/hub',
 }
+
+export const portalSwitcherSurfaces: Array<{ kind: SurfaceKind, label: string, path: string }> = [
+  { kind: 'customer', label: 'Customer', path: '/discover' },
+  { kind: 'partner', label: 'Partner', path: '/partner' },
+  { kind: 'admin', label: 'Admin', path: '/admin' },
+  { kind: 'hub', label: 'Hub', path: '/hub' },
+]

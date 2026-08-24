@@ -1,5 +1,6 @@
 import type { ApiPaginationMeta, ApiSuccessEnvelope } from '~~/shared/types/api'
 import type {
+  ModificationDecisionResponse,
   NotificationPreferences,
   NotificationRecord,
   OperatorBookingRecord,
@@ -19,6 +20,17 @@ import type {
 import { useApi } from './useApi'
 
 type EnvelopeWithMeta<T> = ApiSuccessEnvelope<T, ApiPaginationMeta & Record<string, unknown>>
+
+export type PartnerBookingAction =
+  | 'accept'
+  | 'reject'
+  | 'waitlist'
+  | 'table-ready'
+  | 'arrived'
+  | 'seated'
+  | 'waitlist-seat'
+  | 'completed'
+  | 'no-show'
 
 export function usePartner() {
   const api = useApi()
@@ -40,10 +52,26 @@ export function usePartner() {
       defaultMessage: 'Unable to load this booking.',
     })
 
-  const transitionBooking = (bookingId: number, action: string, body?: Record<string, unknown>) =>
+  const transitionBooking = (bookingId: number, action: PartnerBookingAction, body?: Record<string, unknown>) =>
     api.post<OperatorBookingRecord>(`/restaurant/bookings/${bookingId}/${action}`, {
       body,
       defaultMessage: 'Unable to update this booking.',
+    })
+
+  const setBookingStatus = (bookingId: number, status: string) =>
+    api.post<OperatorBookingRecord>(`/restaurant/bookings/${bookingId}/status`, {
+      body: { status },
+      defaultMessage: 'Unable to set the booking status.',
+    })
+
+  const decideBookingModification = (
+    modificationId: number,
+    decision: 'approve' | 'reject',
+    note?: string,
+  ) =>
+    api.post<ModificationDecisionResponse>(`/restaurant/booking-modifications/${modificationId}/${decision}`, {
+      body: note ? { note } : {},
+      defaultMessage: `Unable to ${decision} this modification request.`,
     })
 
   const getGuestProfile = (bookingId: number) =>
@@ -160,6 +188,11 @@ export function usePartner() {
     }
   }
 
+  const getPickupOrder = (orderId: number) =>
+    api.get<PickupOrderRecord>(`/restaurant/pickup-orders/${orderId}`, {
+      defaultMessage: 'Unable to load this pickup order.',
+    })
+
   const updatePickupOrderStatus = (orderId: number, status: PickupOrderStatus) =>
     api.post<PickupOrderRecord>(`/restaurant/pickup-orders/${orderId}/status`, {
       body: { status },
@@ -224,6 +257,8 @@ export function usePartner() {
     listBookings,
     getBooking,
     transitionBooking,
+    setBookingStatus,
+    decideBookingModification,
     getGuestProfile,
     listGuests,
     getAnalyticsOverview,
@@ -240,6 +275,7 @@ export function usePartner() {
     getPosConnection,
     updatePosConnection,
     listPickupOrders,
+    getPickupOrder,
     updatePickupOrderStatus,
     listPrivateEvents,
     getPrivateEvent,

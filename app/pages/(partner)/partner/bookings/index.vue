@@ -9,7 +9,7 @@ import {
   FlexRender,
 } from '@tanstack/vue-table'
 import type { OperatorBookingRecord } from '~~/shared/types/domain'
-import { usePartner } from '../../../../composables/usePartner'
+import { usePartner, type PartnerBookingAction } from '../../../../composables/usePartner'
 
 definePageMeta({
   layout: 'partner',
@@ -28,6 +28,12 @@ const toast = useToast()
 const statusFilter = ref('')
 const globalFilter = ref('')
 const actionBusy = ref<string | null>(null)
+const modificationModal = ref<OperatorBookingRecord | null>(null)
+
+const formatChange = (value: Record<string, unknown> | undefined) => {
+  if (!value) return []
+  return Object.entries(value).map(([key, val]) => ({ key, value: String(val) }))
+}
 
 const { data: bookingResponse, pending, refresh } = await useAsyncData(
   'partner-bookings-grid',
@@ -90,15 +96,29 @@ const columns = [
     header: 'Status',
     cell: (info) => {
       const st = info.getValue()
+      const row = info.row.original
       const colorClass = st === 'confirmed' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
         : st === 'waitlisted' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+        : st === 'modification_pending' ? 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30'
         : st === 'seated' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
         : st === 'cancelled' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
         : 'bg-slate-800 text-slate-300 border-white/10'
 
-      return h('span', {
-        class: `px-2.5 py-1 rounded-full text-xs font-semibold border ${colorClass}`,
-      }, st)
+      const children = [
+        h('span', {
+          class: `px-2.5 py-1 rounded-full text-xs font-semibold border ${colorClass}`,
+        }, st.replace('_', ' ')),
+      ]
+
+      if (row.modification_request) {
+        children.push(h('button', {
+          class: 'text-[10px] font-mono text-fuchsia-300 underline decoration-dotted hover:text-fuchsia-200',
+          title: JSON.stringify(row.modification_request.requested_payload ?? {}),
+          onClick: () => modificationModal.value = row,
+        }, `view change #${row.modification_request.id}`))
+      }
+
+      return h('div', { class: 'flex flex-col gap-1 items-start' }, children)
     },
   }),
 
@@ -119,6 +139,18 @@ const columns = [
             class: 'px-2 py-1 bg-rose-500/20 text-rose-300 text-xs font-bold rounded hover:bg-rose-500/30 transition-colors',
             onClick: () => executeAction(row.id, 'reject'),
           }, 'Reject'),
+        ])
+      }
+      else if (st === 'modification_pending' && row.modification_request) {
+        return h('div', { class: 'flex gap-1.5' }, [
+          h('button', {
+            class: 'px-2 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold rounded hover:bg-emerald-500/30 transition-colors',
+            onClick: () => decideModification(row, 'approve'),
+          }, 'Approve Change'),
+          h('button', {
+            class: 'px-2 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold rounded hover:bg-rose-500/30 transition-colors',
+            onClick: () => decideModification(row, 'reject'),
+          }, 'Reject Change'),
         ])
       }
       else if (st === 'confirmed') {
@@ -160,10 +192,10 @@ const table = useVueTable({
   },
 })
 
-const executeAction = async (bookingId: number, action: string) => {
+const executeAction = async (bookingId: number, action: PartnerBookingAction | 'status') => {
   actionBusy.value = `${bookingId}-${action}`
   try {
-    await partner.transitionBooking(bookingId, action)
+    await partner.transitionBooking(bookingId, action as PartnerBookingAction)
     toast.add({
       title: 'Status Transition Successful',
       description: `Action "${action}" executed on booking #${bookingId}`,
@@ -174,6 +206,32 @@ const executeAction = async (bookingId: number, action: string) => {
   }
   catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Action failed'
+    toast.add({
+      title: 'Action Failed',
+      description: message,
+      color: 'error',
+    })
+  }
+  finally {
+    actionBusy.value = null
+  }
+}
+
+const decideModification = async (booking: OperatorBookingRecord, decision: 'approve' | 'reject') => {
+  if (!booking.modification_request) return
+  actionBusy.value = `${booking.id}-mod-${decision}`
+  try {
+    await partner.decideBookingModification(booking.modification_request.id, decision)
+    toast.add({
+      title: decision === 'approve' ? 'Modification Approved' : 'Modification Rejected',
+      description: `Booking #${booking.id} (${booking.code}) modification was ${decision}d.`,
+      color: 'success',
+      icon: 'i-lucide-check-circle',
+    })
+    await refresh()
+  }
+  catch (err: unknown) {
+    const message = err instanceof Error ? err.message : `Unable to ${decision} the modification`
     toast.add({
       title: 'Action Failed',
       description: message,
@@ -336,5 +394,58 @@ const executeAction = async (bookingId: number, action: string) => {
         </span>
       </div>
     </div>
+
+    <!-- Modification Request Detail Modal -->
+    <UModal :open="!!modificationModal" title="Modification Request" @update:open="modificationModal = null">
+      <template #body>
+        <div v-if="modificationModal" class="space-y-4 text-xs">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <p class="text-slate-400">Booking</p>
+              <p class="font-mono font-bold text-white">{{ modificationModal.code }}</p>
+            </div>
+            <div>
+              <p class="text-slate-400">Requested at</p>
+              <p class="font-mono text-white">{{ modificationModal.modification_request?.created_at ? new Date(modificationModal.modification_request.created_at).toLocaleString() : '—' }}</p>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-slate-400 mb-1">Requested changes</p>
+            <div class="rounded-lg border border-white/10 divide-y divide-white/5 overflow-hidden">
+              <div
+                v-for="change in formatChange(modificationModal.modification_request?.requested_payload)"
+                :key="change.key"
+                class="flex justify-between px-3 py-2 bg-slate-950/60"
+              >
+                <span class="font-mono text-slate-400">{{ change.key }}</span>
+                <span class="font-mono text-fuchsia-300">{{ change.value }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <UButton
+              color="success"
+              size="xs"
+              icon="i-lucide-check"
+              :loading="actionBusy === `${modificationModal.id}-mod-approve`"
+              @click="decideModification(modificationModal, 'approve'); modificationModal = null"
+            >
+              Approve Change
+            </UButton>
+            <UButton
+              color="error"
+              size="xs"
+              icon="i-lucide-x"
+              :loading="actionBusy === `${modificationModal.id}-mod-reject`"
+              @click="decideModification(modificationModal, 'reject'); modificationModal = null"
+            >
+              Reject Change
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
